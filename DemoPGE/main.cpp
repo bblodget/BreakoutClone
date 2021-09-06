@@ -16,18 +16,23 @@ public:
 	}
 
 private:
-	float fBatPos = 20.0f;
-	float fBatWidth = 40.0f;
-	float fBatHeight = 40.0f;
+	const int world_width = 24;
+	const int world_height = 30;
+
+	olc::vi2d vBlockSize = { 16,16 };
+
+	olc::vf2d vBatSize = { 3.0f, 0.5f };
+	olc::vf2d vBatPos = { (world_width / 2.0f) - vBatSize.x / 2.0f, float(world_height) - 4.0f };
+	olc::vf2d fNextBatPos = vBatPos;
 
 	olc::vf2d vBallPos = { 0.0f, 0.0f };
 	olc::vf2d vBallDir = { 0.0f, 0.0f };
 	float fBallSpeed = 15.0f;
 	float fBallRadius = 5.0f;
 
-	float fBatSpeed = 250.0f;
+	float fBatSpeed = 10.0f;
 
-	olc::vi2d vBlockSize = { 16,16 };
+	
 	std::unique_ptr<int[]> blocks;
 	std::unique_ptr<olc::Sprite> sprTile;
 
@@ -67,22 +72,22 @@ public:
 	bool OnUserCreate() override
 	{
 		// Called once at the start, so create things here
-		blocks = std::make_unique<int[]>(24 * 30);
-		for (int y = 0; y < 30; y++)
+		blocks = std::make_unique<int[]>(world_width * world_height);
+		for (int y = 0; y < world_height; y++)
 		{
-			for (int x = 0; x < 24; x++)
+			for (int x = 0; x < world_width; x++)
 			{
-				if (x == 0 || y == 0 || x == 23)
-					blocks[y * 24 + x] = 10;
+				if (x == 0 || y == 0 || x == world_width-1)
+					blocks[y * world_width + x] = 10;
 				else
-					blocks[y * 24 + x] = 0;
+					blocks[y * world_width + x] = 0;
 
 				if (x > 2 && x <= 20 && y > 3 && y <= 5)
-					blocks[y * 24 + x] = 1;
+					blocks[y * world_width + x] = 1;
 				if (x > 2 && x <= 20 && y > 5 && y <= 7)
-					blocks[y * 24 + x] = 2;
+					blocks[y * world_width + x] = 2;
 				if (x > 2 && x <= 20 && y > 7 && y <= 9)
-					blocks[y * 24 + x] = 3;
+					blocks[y * world_width + x] = 3;
 			}
 		}
 
@@ -105,15 +110,15 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override
 	{
 		// Handle User Input
-		if (GetKey(olc::Key::LEFT).bHeld) fBatPos -= fBatSpeed * fElapsedTime;
-		if (GetKey(olc::Key::RIGHT).bHeld) fBatPos += fBatSpeed * fElapsedTime;
+		if (GetKey(olc::Key::LEFT).bHeld) fNextBatPos.x -= fBatSpeed * fElapsedTime;
+		if (GetKey(olc::Key::RIGHT).bHeld) fNextBatPos.x += fBatSpeed * fElapsedTime;
 
-		if (fBatPos < 11.0f) {
-			fBatPos = 11.0f;
+		if (fNextBatPos.x < 1.0f) {
+			fNextBatPos.x = 1.0f;
 		}
-		if (fBatPos + fBatWidth > float(ScreenWidth()) - 10.0f)
+		if (fNextBatPos.x + vBatSize.x > world_width -1)
 		{
-			fBatPos = float(ScreenWidth()) - 10.0f - fBatWidth;
+			fNextBatPos.x = world_width - (vBatSize.x + 1);
 		}
 
 		// A better collision detection
@@ -127,10 +132,18 @@ public:
 		{
 			olc::vi2d vTestPoint = vPotentialBallPos + vTileBallRadialDims * point;
 
-			auto& tile = blocks[vTestPoint.y * 24 + vTestPoint.x];
+			auto& tile = blocks[vTestPoint.y * world_width + vTestPoint.x];
 			if (tile == 0)
 			{
-				// Do Nothing, no collision
+				// Check if Bat hit
+				bool bBatHit = (vTestPoint.y >= vBatPos.y) && (vTestPoint.x >= vBatPos.x) && (vTestPoint.x <= vBatPos.x + vBatSize.x);
+				if (bBatHit)
+				{
+					vBallDir.y *= -1.0f;  // Bat hit, switch ball direction
+					vBallPos.y = vBatPos.y - vTileBallRadialDims.y;
+				}
+
+				// Do Nothing, Act as though no collision (no fragments)
 				return false;
 			}
 			else
@@ -180,12 +193,9 @@ public:
 		// Fake Floor
 		// XXX if (vBallPos.y > 20.0f) vBallDir.y *= -1.0f;
 
-		// Check Bat
-		if (vBallPos.y * vBlockSize.y >= (float(ScreenHeight()) - fBatHeight) && (vBallPos.x * vBlockSize.x > fBatPos) && (vBallPos.x * vBlockSize.x < fBatPos + fBatWidth))
-			vBallDir.y *= -1.0f;
 
 		// Check if ball has gone off screen
-		if (vBallPos.y * vBlockSize.y > ScreenHeight()- 10)
+		if (vBallPos.y  > world_height - 2)
 		{
 			// Reset ball location
 			restartBall();
@@ -193,6 +203,9 @@ public:
 
 		// Actually update ball position with modified direction
 		vBallPos += vBallDir * fBallSpeed * fElapsedTime;
+
+		// Actually update the bat position
+		vBatPos = fNextBatPos;
 
 		// Update fragments
 		for (auto& f : listFragments)
@@ -217,11 +230,11 @@ public:
 		Clear(olc::DARK_BLUE);
 		SetPixelMode(olc::Pixel::MASK); // Don't draw pixels which have any transparency
 
-		for (int y = 0; y < 30; y++)
+		for (int y = 0; y < world_height; y++)
 		{
-			for (int x = 0; x < 24; x++)
+			for (int x = 0; x < world_width; x++)
 			{
-				switch (blocks[y * 24 + x])
+				switch (blocks[y * world_width + x])
 				{
 				case 0 : // Do nothing
 					break;
@@ -246,7 +259,7 @@ public:
 		FillCircle(vBallPos * vBlockSize, fBallRadius, olc::CYAN);
 
 		// Draw Bat
-		FillRect(int(fBatPos), ScreenHeight() - fBatHeight, int(fBatWidth), 10, olc::GREEN);
+		FillRect(vBatPos* vBlockSize, vBatSize * vBlockSize, olc::GREEN);
 
 		// Draw Fragements
 		for (auto& f : listFragments)
