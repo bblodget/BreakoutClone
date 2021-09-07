@@ -18,7 +18,7 @@ public:
 
 private:
 	const int world_width = 24;
-	const int world_height = 30;
+	const int world_height = 28;
 
 	olc::vi2d vBlockSize = { 16,16 };
 
@@ -31,7 +31,7 @@ private:
 	float fBallSpeed = 15.0f;
 	float fBallRadius = 5.0f;
 
-	float fBatSpeed = 15.0f;
+	float fBatSpeed = 20.0f;
 
 	
 	std::unique_ptr<int[]> blocks;
@@ -66,6 +66,14 @@ private:
 
 
 public:
+	int getScreenWidth() {
+		return (world_width+8) * vBlockSize.y;
+	}
+
+	int getScreenHeight() {
+		return world_height * vBlockSize.x;
+	}
+
 	void pauseBall()
 	{
 		vBallDir = { 0.0f, 0.0f };
@@ -89,6 +97,7 @@ public:
 	void resetWorld()
 	{
 		score = 0;
+		lives = 3;
 
 		for (int y = 0; y < world_height; y++)
 		{
@@ -136,7 +145,7 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override
 	{	
 		if (game_state == NEW_GAME || game_state == MISS || game_state == GAME_OVER) {
-			if (GetKey(olc::Key::SPACE).bPressed) {
+			if (GetKey(olc::Key::SPACE).bPressed || GetMouse(0).bPressed) {
 				if (game_state == GAME_OVER) {
 					game_state = NEW_GAME;
 					resetWorld();
@@ -151,6 +160,9 @@ public:
 		// Handle User Input
 		if (GetKey(olc::Key::LEFT).bHeld) fNextBatPos.x -= fBatSpeed * fElapsedTime;
 		if (GetKey(olc::Key::RIGHT).bHeld) fNextBatPos.x += fBatSpeed * fElapsedTime;
+
+		// Control the paddle (bat) with the scroll wheel
+		fNextBatPos.x += GetMouseWheel() * (fBatSpeed/2) * fElapsedTime;
 
 		if (fNextBatPos.x < 1.0f) {
 			fNextBatPos.x = 1.0f;
@@ -371,7 +383,7 @@ public:
 int main()
 {
 	BreakOut demo;
-	if (demo.Construct(512, 480, 2, 2))
+	if (demo.Construct(demo.getScreenWidth(), demo.getScreenHeight(), 2, 2))
 		demo.Start();
 	return 0;
 }
