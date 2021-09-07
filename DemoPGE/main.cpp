@@ -4,6 +4,7 @@
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
+#include <string>
 
 // Override base class with your custom functionality
 class BreakOut : public olc::PixelGameEngine
@@ -30,7 +31,7 @@ private:
 	float fBallSpeed = 15.0f;
 	float fBallRadius = 5.0f;
 
-	float fBatSpeed = 10.0f;
+	float fBatSpeed = 15.0f;
 
 	
 	std::unique_ptr<int[]> blocks;
@@ -53,8 +54,24 @@ private:
 
 	std::list<sFragment> listFragments;
 
+	int high_score = 0;
+	int score = 0;
+	int lives = 3;
+
+	enum eState
+	{
+		NEW_GAME, ACTIVE, MISS, GAME_OVER
+	};
+	eState game_state = NEW_GAME;
+
 
 public:
+	void pauseBall()
+	{
+		vBallDir = { 0.0f, 0.0f };
+		vBallPos = { 28.0f, -10.0f };  // off the screen
+	}
+
 	void restartBall()
 	{
 		float fAngle = 0.0;
@@ -69,15 +86,15 @@ public:
 		vBallPos = { 12.5f, 15.5f };
 	}
 
-	bool OnUserCreate() override
+	void resetWorld()
 	{
-		// Called once at the start, so create things here
-		blocks = std::make_unique<int[]>(world_width * world_height);
+		score = 0;
+
 		for (int y = 0; y < world_height; y++)
 		{
 			for (int x = 0; x < world_width; x++)
 			{
-				if (x == 0 || y == 0 || x == world_width-1)
+				if (x == 0 || y == 0 || x == world_width - 1)
 					blocks[y * world_width + x] = 10;
 				else
 					blocks[y * world_width + x] = 0;
@@ -90,6 +107,13 @@ public:
 					blocks[y * world_width + x] = 3;
 			}
 		}
+	}
+
+	bool OnUserCreate() override
+	{
+		// Called once at the start, so create things here
+		blocks = std::make_unique<int[]>(world_width * world_height);
+		resetWorld();
 
 		// Load the sprite
 		sprTile = std::make_unique<olc::Sprite>("./gfx/tut_tiles.png");
@@ -101,14 +125,29 @@ public:
 		decFragment = std::make_unique<olc::Decal>(sprFragment.get());
 
 		// Start Ball
-		restartBall();
+		//restartBall();
+
+		game_state = NEW_GAME;
 
 
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
-	{
+	{	
+		if (game_state == NEW_GAME || game_state == MISS || game_state == GAME_OVER) {
+			if (GetKey(olc::Key::SPACE).bPressed) {
+				if (game_state == GAME_OVER) {
+					game_state = NEW_GAME;
+					resetWorld();
+				}
+				else {
+					game_state = ACTIVE;
+					restartBall();
+				}
+			}
+		}
+
 		// Handle User Input
 		if (GetKey(olc::Key::LEFT).bHeld) fNextBatPos.x -= fBatSpeed * fElapsedTime;
 		if (GetKey(olc::Key::RIGHT).bHeld) fNextBatPos.x += fBatSpeed * fElapsedTime;
@@ -174,6 +213,7 @@ public:
 
 		if (bHasHitTile)
 		{
+			score += 4 - hitid;
 			for (int i = 0; i < 100; i++)
 			{
 				sFragment f;
@@ -197,8 +237,15 @@ public:
 		// Check if ball has gone off screen
 		if (vBallPos.y  > world_height - 2)
 		{
-			// Reset ball location
-			restartBall();
+			// pause the ball
+			pauseBall();
+			game_state = MISS;
+			lives -= 1;
+			if (lives <= 0)
+			{
+				lives = 0;
+				game_state = GAME_OVER;
+			}
 		}
 
 		// Actually update ball position with modified direction
@@ -266,6 +313,56 @@ public:
 		{
 			DrawRotatedDecal(f.pos* vBlockSize, decFragment.get(), f.fAngle, { 4,4 }, { 1,1 }, f.colour);
 		}
+
+		// Draw Score Board
+		std::string sText = "High Score";
+		DrawStringProp(25 * vBlockSize.x, 2 * vBlockSize.y, sText);
+		sText = std::to_string(high_score);
+		DrawStringProp(28 * vBlockSize.x, 3 * vBlockSize.y, sText);
+
+		sText = "Score";
+		DrawStringProp(25 * vBlockSize.x, 5 * vBlockSize.y, sText);
+		sText = std::to_string(score);
+		DrawStringProp(28 * vBlockSize.x, 6 * vBlockSize.y, sText);
+
+		sText = "Lives";
+		DrawStringProp(25 * vBlockSize.x, 8 * vBlockSize.y, sText);
+		sText = std::to_string(lives);
+		DrawStringProp(28 * vBlockSize.x, 9 * vBlockSize.y, sText);
+
+
+
+
+		if (game_state == NEW_GAME)
+		{
+			// New Game
+			std::string sText = "Press Space Bar to Start";
+			DrawStringProp(7 * vBlockSize.x, 15 * vBlockSize.y, sText);
+		}
+
+		if (game_state == MISS)
+		{
+			// They missed the ball!
+			std::string sText = "Oops! Press Space Bar to Continue";
+			DrawStringProp(5 * vBlockSize.x, 15 * vBlockSize.y, sText);
+		}
+
+		if (game_state == GAME_OVER)
+		{
+			// The game is over
+			std::string sText = "Game Over!";
+			DrawStringProp(10 * vBlockSize.x, 15 * vBlockSize.y, sText);
+
+			if (score >= high_score) {
+				high_score = score;
+				std::string sText = "Nice! New High Score!";
+				DrawStringProp(8 * vBlockSize.x, 16 * vBlockSize.y, sText);
+			}
+
+			sText = "Press Space Bar to Play Again";
+			DrawStringProp(6 * vBlockSize.x, 17 * vBlockSize.y, sText);
+		}
+
 
 		return true;
 	}
