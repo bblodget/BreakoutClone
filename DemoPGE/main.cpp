@@ -136,10 +136,10 @@ public:
 		resetWorld();
 
 		// Load the sprite
-		sprTile = std::make_unique<olc::Sprite>("./gfx/tut_tiles.png");
+		sprTile = std::make_unique<olc::Sprite>("./assets/gfx/tut_tiles.png");
 
 		// Load Fragment Sprite
-		sprFragment = std::make_unique<olc::Sprite>("./gfx/tut_fragment.png");
+		sprFragment = std::make_unique<olc::Sprite>("./assets/gfx/tut_fragment.png");
 
 		// Create decal of fragment
 		decFragment = std::make_unique<olc::Decal>(sprFragment.get());
