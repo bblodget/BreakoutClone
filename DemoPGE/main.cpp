@@ -1,5 +1,5 @@
 // O------------------------------------------------------------------------------O
-// | Example "Hello World" Program (main.cpp)                                     |
+// | Breakout Clone (main.cpp)                                                    |
 // O------------------------------------------------------------------------------O
 
 #define OLC_PGE_APPLICATION
@@ -17,6 +17,11 @@ public:
 	}
 
 private:
+	enum class tType
+	{
+		EMPTY, BORDER, RED, GREEN, YELLOW, BAT
+	};
+
 	const int world_width = 24;
 	const int world_height = 28;
 
@@ -34,7 +39,7 @@ private:
 	float fBatSpeed = 20.0f;
 
 	
-	std::unique_ptr<int[]> blocks;
+	std::unique_ptr<tType[]> blocks;
 	std::unique_ptr<olc::Sprite> sprTile;
 
 	std::unique_ptr<olc::Sprite> sprFragment;
@@ -58,11 +63,11 @@ private:
 	int score = 0;
 	int lives = 3;
 
-	enum eState
+	enum class eState
 	{
 		NEW_GAME, ACTIVE, MISS, GAME_OVER
 	};
-	eState game_state = NEW_GAME;
+	eState game_state = eState::NEW_GAME;
 
 
 public:
@@ -103,17 +108,23 @@ public:
 		{
 			for (int x = 0; x < world_width; x++)
 			{
+				// Draw the border blocks
 				if (x == 0 || y == 0 || x == world_width - 1)
-					blocks[y * world_width + x] = 10;
+					blocks[y * world_width + x] = tType::BORDER;
 				else
-					blocks[y * world_width + x] = 0;
+					blocks[y * world_width + x] = tType::EMPTY;
 
+				// Two rows of red blocks
 				if (x > 2 && x <= 20 && y > 3 && y <= 5)
-					blocks[y * world_width + x] = 1;
+					blocks[y * world_width + x] = tType::RED;
+
+				// Two rows of green blocks
 				if (x > 2 && x <= 20 && y > 5 && y <= 7)
-					blocks[y * world_width + x] = 2;
+					blocks[y * world_width + x] = tType::GREEN;
+
+				// Two rows of yellow blocks
 				if (x > 2 && x <= 20 && y > 7 && y <= 9)
-					blocks[y * world_width + x] = 3;
+					blocks[y * world_width + x] = tType::YELLOW;
 			}
 		}
 	}
@@ -121,7 +132,7 @@ public:
 	bool OnUserCreate() override
 	{
 		// Called once at the start, so create things here
-		blocks = std::make_unique<int[]>(world_width * world_height);
+		blocks = std::make_unique<tType[]>(world_width * world_height);
 		resetWorld();
 
 		// Load the sprite
@@ -136,7 +147,7 @@ public:
 		// Start Ball
 		//restartBall();
 
-		game_state = NEW_GAME;
+		game_state = eState::NEW_GAME;
 
 
 		return true;
@@ -144,14 +155,14 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{	
-		if (game_state == NEW_GAME || game_state == MISS || game_state == GAME_OVER) {
+		if (game_state == eState::NEW_GAME || game_state == eState::MISS || game_state == eState::GAME_OVER) {
 			if (GetKey(olc::Key::SPACE).bPressed || GetMouse(0).bPressed) {
-				if (game_state == GAME_OVER) {
-					game_state = NEW_GAME;
+				if (game_state == eState::GAME_OVER) {
+					game_state = eState::NEW_GAME;
 					resetWorld();
 				}
 				else {
-					game_state = ACTIVE;
+					game_state = eState::ACTIVE;
 					restartBall();
 				}
 			}
@@ -179,12 +190,12 @@ public:
 		// Test for hits 4 points around ball
 		olc::vf2d vTileBallRadialDims = { fBallRadius / vBlockSize.x, fBallRadius / vBlockSize.y };
 
-		auto TestResolveCollisionPoint = [&](const olc::vf2d& point, olc::vf2d& hitpos, int& id)
+		auto TestResolveCollisionPoint = [&](const olc::vf2d& point, olc::vf2d& hitpos, tType& id)
 		{
 			olc::vi2d vTestPoint = vPotentialBallPos + vTileBallRadialDims * point;
 
 			auto& tile = blocks[vTestPoint.y * world_width + vTestPoint.x];
-			if (tile == 0)
+			if (tile == tType::EMPTY)
 			{
 				// Check if Bat hit
 				bool bBatHit = (vTestPoint.y >= vBatPos.y) && (vTestPoint.x >= vBatPos.x) && (vTestPoint.x <= vBatPos.x + vBatSize.x);
@@ -192,6 +203,7 @@ public:
 				{
 					vBallDir.y *= -1.0f;  // Bat hit, switch ball direction
 					vBallPos.y = vBatPos.y - vTileBallRadialDims.y;
+					score += 5;		// add to score when you hit the ball
 				}
 
 				// Do Nothing, Act as though no collision (no fragments)
@@ -200,12 +212,18 @@ public:
 			else
 			{
 				// Ball has collided with a tile
-				bool bTileHit = tile < 10;
+				bool bTileHit = tile == tType::RED || tile == tType::GREEN || tile == tType::YELLOW ;
 				if (bTileHit)
 				{
 					id = tile;
 					hitpos = { float(vTestPoint.x), float(vTestPoint.y) };
-					tile--;
+
+					// Update the tile to new color
+					switch (tile) {
+						case tType::YELLOW: tile = tType::GREEN; break;
+						case tType::GREEN: tile = tType::RED; break;
+						case tType::RED: tile = tType::EMPTY; break;
+					}
 				}
 
 				// Collision response
@@ -217,7 +235,7 @@ public:
 
 		bool bHasHitTile = false;
 		olc::vf2d hitpos;
-		int hitid = 0;
+		tType hitid = tType::EMPTY;
 		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(0, -1), hitpos, hitid);
 		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(0, +1), hitpos, hitid);
 		bHasHitTile |= TestResolveCollisionPoint(olc::vf2d(-1, 0), hitpos, hitid);
@@ -225,8 +243,13 @@ public:
 
 		if (bHasHitTile)
 		{
-			score += 4 - hitid;
-			for (int i = 0; i < 100; i++)
+			int num_fragments = 0;
+			switch (hitid) {
+				case tType::RED: score += 30; num_fragments = 30;  break;
+				case tType::GREEN: score += 20; num_fragments = 20; break;
+				case tType::YELLOW: score += 10; num_fragments = 10;  break;
+			}
+			for (int i = 0; i < num_fragments; i++)
 			{
 				sFragment f;
 				f.pos = { hitpos.x + 0.5f, hitpos.y + 0.5f };
@@ -235,9 +258,9 @@ public:
 				f.vel = { fVelocity * cos(fAngle), fVelocity * sin(fAngle) };
 				f.fAngle = fAngle;
 				f.fTime = 3.0f;
-				if (hitid == 1) f.colour = olc::RED;
-				if (hitid == 2) f.colour = olc::GREEN;
-				if (hitid == 3) f.colour = olc::YELLOW;
+				if (hitid == tType::RED) f.colour = olc::RED;
+				if (hitid == tType::GREEN) f.colour = olc::GREEN;
+				if (hitid == tType::YELLOW) f.colour = olc::YELLOW;
 				listFragments.push_back(f);
 			}
 		}
@@ -251,12 +274,12 @@ public:
 		{
 			// pause the ball
 			pauseBall();
-			game_state = MISS;
+			game_state = eState::MISS;
 			lives -= 1;
 			if (lives <= 0)
 			{
 				lives = 0;
-				game_state = GAME_OVER;
+				game_state = eState::GAME_OVER;
 			}
 		}
 
@@ -295,18 +318,18 @@ public:
 			{
 				switch (blocks[y * world_width + x])
 				{
-				case 0 : // Do nothing
+				case tType::EMPTY : // Do nothing
 					break;
-				case 10: // Draw Boundary
+				case tType::BORDER: // Draw Boundary
 					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(0,0) * vBlockSize, vBlockSize);
 					break;
-				case 1: // Draw Red Block
+				case tType::RED: // Draw Red Block
 					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(1,0) * vBlockSize, vBlockSize);
 					break;
-				case 2: // Draw Green Block
+				case tType::GREEN: // Draw Green Block
 					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(2, 0) * vBlockSize, vBlockSize);
 					break;
-				case 3: // Draw Yellow Block
+				case tType::YELLOW: // Draw Yellow Block
 					DrawPartialSprite(olc::vi2d(x, y) * vBlockSize, sprTile.get(), olc::vi2d(3, 0) * vBlockSize, vBlockSize);
 					break;
 				}
@@ -345,21 +368,21 @@ public:
 
 
 
-		if (game_state == NEW_GAME)
+		if (game_state == eState::NEW_GAME)
 		{
 			// New Game
 			std::string sText = "Press Space Bar to Start";
 			DrawStringProp(7 * vBlockSize.x, 15 * vBlockSize.y, sText);
 		}
 
-		if (game_state == MISS)
+		if (game_state == eState::MISS)
 		{
 			// They missed the ball!
 			std::string sText = "Oops! Press Space Bar to Continue";
 			DrawStringProp(5 * vBlockSize.x, 15 * vBlockSize.y, sText);
 		}
 
-		if (game_state == GAME_OVER)
+		if (game_state == eState::GAME_OVER)
 		{
 			// The game is over
 			std::string sText = "Game Over!";
