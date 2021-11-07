@@ -48,6 +48,8 @@ private:
 	const float MIN_ANGLE = 0.523;  // radian (30 degrees)
 	const float MAX_ANGLE = 1.221;  // radian (70 degrees)
 
+	int numBlocks = 0;
+
 	struct sFragment
 	{
 		olc::vf2d pos;
@@ -65,7 +67,7 @@ private:
 
 	enum class eState
 	{
-		NEW_GAME, ACTIVE, MISS, GAME_OVER
+		NEW_GAME, ACTIVE, MISS, GAME_OVER, WIN
 	};
 	eState game_state = eState::NEW_GAME;
 
@@ -103,6 +105,7 @@ public:
 	{
 		score = 0;
 		lives = 3;
+		numBlocks = 0;
 
 		for (int y = 0; y < world_height; y++)
 		{
@@ -115,16 +118,22 @@ public:
 					blocks[y * world_width + x] = tType::EMPTY;
 
 				// Two rows of red blocks
-				if (x > 2 && x <= 20 && y > 3 && y <= 5)
+				if (x > 2 && x <= 20 && y > 3 && y <= 4) {
 					blocks[y * world_width + x] = tType::RED;
+					numBlocks++;
+				}
 
 				// Two rows of green blocks
-				if (x > 2 && x <= 20 && y > 5 && y <= 7)
+				if (x > 2 && x <= 20 && y > 5 && y <= 6) {
 					blocks[y * world_width + x] = tType::GREEN;
+					numBlocks++;
+				}
 
 				// Two rows of yellow blocks
-				if (x > 2 && x <= 20 && y > 7 && y <= 9)
+				if (x > 2 && x <= 20 && y > 7 && y <= 8) {
 					blocks[y * world_width + x] = tType::YELLOW;
+					numBlocks++;
+				}
 			}
 		}
 	}
@@ -155,9 +164,10 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{	
-		if (game_state == eState::NEW_GAME || game_state == eState::MISS || game_state == eState::GAME_OVER) {
+		if (game_state == eState::NEW_GAME || game_state == eState::MISS || 
+				game_state == eState::GAME_OVER || game_state == eState::WIN) {
 			if (GetKey(olc::Key::SPACE).bPressed || GetMouse(0).bPressed) {
-				if (game_state == eState::GAME_OVER) {
+				if (game_state == eState::GAME_OVER || game_state == eState::WIN) {
 					game_state = eState::NEW_GAME;
 					resetWorld();
 				}
@@ -245,9 +255,24 @@ public:
 		{
 			int num_fragments = 0;
 			switch (hitid) {
-				case tType::RED: score += 30; num_fragments = 30;  break;
-				case tType::GREEN: score += 20; num_fragments = 20; break;
-				case tType::YELLOW: score += 10; num_fragments = 10;  break;
+			case tType::RED: 
+				score += 30; 
+				num_fragments = 30;  
+				numBlocks--;	// block destroyed
+				if (numBlocks == 0) {
+					game_state = eState::WIN;
+					// pause the ball
+					pauseBall();
+				}
+				break;
+			case tType::GREEN: 
+				score += 20; 
+				num_fragments = 20; 
+				break;
+			case tType::YELLOW: 
+				score += 10; 
+				num_fragments = 10;  
+				break;
 			}
 			for (int i = 0; i < num_fragments; i++)
 			{
@@ -386,6 +411,21 @@ public:
 		{
 			// The game is over
 			std::string sText = "Game Over!";
+			DrawStringProp(10 * vBlockSize.x, 15 * vBlockSize.y, sText);
+
+			if (score >= high_score) {
+				high_score = score;
+				std::string sText = "Nice! New High Score!";
+				DrawStringProp(8 * vBlockSize.x, 16 * vBlockSize.y, sText);
+			}
+
+			sText = "Press Space Bar to Play Again";
+			DrawStringProp(6 * vBlockSize.x, 17 * vBlockSize.y, sText);
+		}
+		if (game_state == eState::WIN) {
+			// You Win!
+			// All blocks cleared
+			std::string sText = "You Win!";
 			DrawStringProp(10 * vBlockSize.x, 15 * vBlockSize.y, sText);
 
 			if (score >= high_score) {
